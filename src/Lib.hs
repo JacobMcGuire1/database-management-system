@@ -64,18 +64,6 @@ createTable :: String -> [ColumnHeader] -> Table
 createTable name colheaders =
     Table name colheaders []
 
-
-{-simpleTest :: String -> Int -> Database
-simpleTest strarg intarg = do
-    sfield <- StringField "strarg"
-    ifield <- IntField intarg
-    myrow <- Row [sfield, ifield]
-    mycolheader <- ColumnHeader "Col 1" "String"
-    mycolheader2 <- ColumnHeader "Col 2" "Int"
-    mytable <- Table "Table 1" [mycolheader, mycolheader2] [myrow]
-    mydb <- Database "Db 1" [mytable]
-    mydb-}
-
 simpleTest :: String -> Int -> Database
 simpleTest strarg intarg =
     mydb
