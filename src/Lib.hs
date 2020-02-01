@@ -9,6 +9,8 @@ import Data.List
 data Err = TableNameAlreadyExistsError String
     |
     TableNotFoundError String
+    |
+    WrongDataTypeError String
     deriving Show
 
 data Database = Database {
@@ -20,22 +22,26 @@ data Table = Table {
     tablename :: String,
     colheaders :: [ColumnHeader],
     rows :: [Row]
-} 
+}
 instance Show Table where
     show (Table name colheaders rows) = "\n\n Table " ++ show name ++ ": \n\n" ++ show colheaders ++ "\n" ++ show rows
 
-data ColumnHeader = ColumnHeader {
-    colname :: String,
-    datatype :: String
-} 
+data ColumnHeader = StringColHeader {
+    colname :: String
+    --datatype :: String
+    }
+    | IntColHeader {
+        colname :: String
+    }
 instance Show ColumnHeader where
-    show (ColumnHeader name dtype) = show name ++ ", "
+    show colheader = show $ colname colheader ++ ", "
 
 data Row = Row {
     fields :: [DataField]
-} 
+}
 instance Show Row where
-    show (Row fs) = show (head fs) ++ ", " ++ show (tail fs) ++ "\n"
+    --show (Row fs) = --map (\x -> (show x)) fs
+    show (Row fs) = show (head fs) ++ ", " ++ (if not (null (tail fs)) then show (Row $ tail fs) else "\n")  --need to fix error
 
 data DataField = StringField {
     strdata :: String
@@ -50,52 +56,6 @@ instance Show DataField where
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"
 
---Check if table with same name already exists
-addTable :: Database -> Table -> Either Err Database
-addTable db tb =
-    if nameavailable then Right newdb
-    else Left $ TableNameAlreadyExistsError $ tablename tb
-    where
-        newdb = Database (dbname db) (tables db ++ [tb])
-        nameavailable = all (\x -> tablename tb /= tablename x) (tables db)
-
-
-createTable :: String -> [ColumnHeader] -> Table
-createTable name colheaders =
-    Table name colheaders []
-
-simpleTest :: String -> Int -> Database
-simpleTest strarg intarg =
-    mydb
-    where
-        sfield = StringField strarg
-        ifield = IntField intarg
-        myrow = Row [sfield, ifield]
-        mycolheader = ColumnHeader "Col 1" "String"
-        mycolheader2 = ColumnHeader "Col 2" "Int"
-        mytable = Table "Table 1" [mycolheader, mycolheader2] [myrow]
-        mydb = Database "Db 1" [mytable]
-
-seeDb :: Database
-seeDb =
-    mydb
-    where
-        sfield = StringField "strarg"
-        ifield = IntField 23234
-        myrow = Row [sfield, ifield]
-        mycolheader = ColumnHeader "Col 1" "String"
-        mycolheader2 = ColumnHeader "Col 2" "Int"
-        mytable = Table "Table 1" [mycolheader, mycolheader2] [myrow]
-        mydb = Database "Db 1" [mytable]
-
---Should return an error as the tabke name already exists
-errorTest :: Either Err Database
-errorTest = do
-    db2 <- addTable db tb
-    addTable db2 tb
-    where
-        tb = createTable "Table 1" []
-        db = simpleTest "uigiu" 12
 
 select :: Database -> [String] -> String -> Either Err Table
 select db columns tbname =
@@ -122,6 +82,100 @@ getTableByName db tbname =
     else Right $ head tb
     where
       tb = filter (\x -> tablename x == tbname) (tables db)
+
+--Check if table with same name already exists
+addTable :: Database -> Table -> Either Err Database
+addTable db tb =
+    if nameavailable then Right newdb
+    else Left $ TableNameAlreadyExistsError $ tablename tb
+    where
+        newdb = Database (dbname db) (tables db ++ [tb])
+        nameavailable = all (\x -> tablename tb /= tablename x) (tables db)
+
+--Inserts the row into the table unless there are errors.
+insertInto :: Table -> Row -> Either Err Table
+insertInto tb row = 
+    if length rowdata /= length headers then Left $ WrongDataTypeError "Wrong number of fields assigned to when inserting a row."
+    else do
+        checkdata <- mapM checkFieldDataType zipped
+        Right $ Table (tablename tb) (colheaders tb) ((rows tb) ++ [Row checkdata])
+    where
+        rowdata = fields row
+        headers = colheaders tb
+        zipped = zip rowdata headers
+        --checkdata = map checkFieldDataType zipped
+        --i = Row checkdata
+        --j = Row i
+        --goodshit = foldl (&&) True aawdaw
+
+checkFieldDataType :: (DataField, ColumnHeader) -> Either Err DataField
+checkFieldDataType (StringField s, StringColHeader _) = Right $ StringField s
+checkFieldDataType (IntField i, IntColHeader _) = Right $ IntField i
+checkFieldDataType (_, _) = Left $ WrongDataTypeError "Attempted to assign a field the wrong data type."
+
+createTable :: String -> [ColumnHeader] -> Table
+createTable name colheaders =
+    Table name colheaders []
+
+simpleTest :: String -> Int -> Database
+simpleTest strarg intarg =
+    mydb
+    where
+        sfield = StringField strarg
+        ifield = IntField intarg
+        myrow = Row [sfield, ifield]
+        mycolheader = StringColHeader "Col 1"
+        mycolheader2 = IntColHeader "Col 2"
+        mytable = Table "Table 1" [mycolheader, mycolheader2] [myrow]
+        mydb = Database "Db 1" [mytable]
+
+goodtestRow :: Row
+goodtestRow =
+    Row [sfield, ifield]
+    where
+        sfield = StringField "dwad"
+        ifield = IntField 4324
+
+wrongtypesrow :: Row
+wrongtypesrow =
+    Row [ifield, sfield]
+    where
+        sfield = StringField "dwad"
+        ifield = IntField 4324
+
+manyargsrow :: Row
+manyargsrow =
+    Row [ifield, sfield, ifield, sfield]
+    where
+        sfield = StringField "dwad"
+        ifield = IntField 4324
+
+fewargsrow :: Row
+fewargsrow =
+    Row []
+    where
+        sfield = StringField "dwad"
+        ifield = IntField 4324
+
+testTable :: Table
+testTable =
+    Table "Table 2" [mycolheader, mycolheader2] []
+    where
+        mycolheader = StringColHeader "Col 1"
+        mycolheader2 = IntColHeader "Col 2"
+
+seeDb :: Database
+seeDb = simpleTest "strarg" 23234
+
+--Should return an error as the tabke name already exists
+errorTest :: Either Err Database
+errorTest = do
+    db2 <- addTable db tb
+    addTable db2 tb
+    where
+        tb = createTable "Table 1" []
+        db = simpleTest "uigiu" 12
+
 
 {-makerow :: String -> Int -> Row
 makerow strarg intarg = 
