@@ -5,6 +5,8 @@ module Lib
 
 --import NumericPrelude.List.Generic
 import Data.List
+import Data.Typeable
+
 
 data Err = TableNameAlreadyExistsError String
     |
@@ -92,27 +94,25 @@ addTable db tb =
         newdb = Database (dbname db) (tables db ++ [tb])
         nameavailable = all (\x -> tablename tb /= tablename x) (tables db)
 
---Inserts the row into the table unless there are errors.
+--Inserts the row into the table if it's eligible.
 insertInto :: Table -> Row -> Either Err Table
-insertInto tb row = 
+insertInto tb row =
     if length rowdata /= length headers then Left $ WrongDataTypeError "Wrong number of fields assigned to when inserting a row."
     else do
         checkdata <- mapM checkFieldDataType zipped
-        Right $ Table (tablename tb) (colheaders tb) ((rows tb) ++ [Row checkdata])
+        Right $ Table (tablename tb) (colheaders tb) (rows tb ++ [Row checkdata])
     where
         rowdata = fields row
         headers = colheaders tb
         zipped = zip rowdata headers
-        --checkdata = map checkFieldDataType zipped
-        --i = Row checkdata
-        --j = Row i
-        --goodshit = foldl (&&) True aawdaw
+
 
 checkFieldDataType :: (DataField, ColumnHeader) -> Either Err DataField
 checkFieldDataType (StringField s, StringColHeader _) = Right $ StringField s
 checkFieldDataType (IntField i, IntColHeader _) = Right $ IntField i
-checkFieldDataType (_, _) = Left $ WrongDataTypeError "Attempted to assign a field the wrong data type."
+checkFieldDataType (a, b) = Left $ WrongDataTypeError $ "Attempted to assign " ++ show (typeOf a) ++ " a field " ++ show (typeOf b) ++ " the wrong data type."
 
+--Creates table based on list of constraints
 createTable :: String -> [ColumnHeader] -> Table
 createTable name colheaders =
     Table name colheaders []
@@ -129,40 +129,9 @@ simpleTest strarg intarg =
         mytable = Table "Table 1" [mycolheader, mycolheader2] [myrow]
         mydb = Database "Db 1" [mytable]
 
-goodtestRow :: Row
-goodtestRow =
-    Row [sfield, ifield]
-    where
-        sfield = StringField "dwad"
-        ifield = IntField 4324
 
-wrongtypesrow :: Row
-wrongtypesrow =
-    Row [ifield, sfield]
-    where
-        sfield = StringField "dwad"
-        ifield = IntField 4324
 
-manyargsrow :: Row
-manyargsrow =
-    Row [ifield, sfield, ifield, sfield]
-    where
-        sfield = StringField "dwad"
-        ifield = IntField 4324
 
-fewargsrow :: Row
-fewargsrow =
-    Row []
-    where
-        sfield = StringField "dwad"
-        ifield = IntField 4324
-
-testTable :: Table
-testTable =
-    Table "Table 2" [mycolheader, mycolheader2] []
-    where
-        mycolheader = StringColHeader "Col 1"
-        mycolheader2 = IntColHeader "Col 2"
 
 seeDb :: Database
 seeDb = simpleTest "strarg" 23234
@@ -175,12 +144,3 @@ errorTest = do
     where
         tb = createTable "Table 1" []
         db = simpleTest "uigiu" 12
-
-
-{-makerow :: String -> Int -> Row
-makerow strarg intarg = 
-    myrow
-    where
-        sfield = StringField "strarg"
-        ifield = IntField intarg
-        myrow = Row [sfield, ifield]-}
